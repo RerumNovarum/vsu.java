@@ -3,6 +3,8 @@ import java.io.BufferedReader;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.Iterator;
+import java.lang.Iterable;
 import java.lang.IndexOutOfBoundsException;
 
 
@@ -11,37 +13,6 @@ public class MazeWalker {
     private static final int MAX_DEG = 4;
     private static final int INFTY = MAX_LEN+1;
     private static final int EMPTY = INFTY;
-
-    public static class IntArray2
-    {
-        private int[] data;
-        private int W;
-        private int H;
-
-        public IntArray2(int w, int h) {
-            this.data = new int[w*h];
-            this.W = w;
-            this.H = h;
-        }
-        public IntArray2(int w, int h, int ini) {
-            this(w, h);
-            for (int i = 0; i < w*h; ++i)
-                this.data[i] = ini;
-        }
-
-        public int W() {
-            return this.W;
-        }
-        public int H() {
-            return this.H;
-        }
-        public int get(int i, int j) {
-            return this.data[i*H + j];
-        }
-        public void set(int i, int j, int val) {
-            this.data[i*H + j] = val;
-        }
-    }
 
     public static class Point2
     {
@@ -76,7 +47,7 @@ public class MazeWalker {
         }
     }
 
-    public static class MazePercolationSystem
+    public static class Maze
     {
         /* it'd be much better to write integers-specific implementation */
         /* of hashmap with linear probing */
@@ -86,7 +57,7 @@ public class MazeWalker {
         private int xo, yo, xd, yd;
         private int n;
 
-        public MazePercolationSystem(String path) {
+        public Maze(String path) {
             this.xytoi = new HashMap<Point2, Integer>();
             /* length of original path */
             int moves = path.length();
@@ -153,6 +124,11 @@ public class MazeWalker {
             this.yd = yd;
         }
 
+        /*+-----------------------------------------+
+         *| Manifold structure (coordinate systems) |
+         *+-----------------------------------------+
+         */
+
         private void mapxytoi(int x, int y, int i) {
             xytoi.put(new Point2(x, y), i);
         }
@@ -194,84 +170,90 @@ public class MazeWalker {
         public int n() {
             return this.n;
         }
-    }
 
-    public static class Graph
-    {
-        public IntArray2 adj;
-        public int V;
+        /* graph structure */
 
-        public Graph(int V) {
-            adj = new IntArray2(V, MAX_DEG, EMPTY);
-            this.V = V;
+        public boolean adjacent(int v, int w) {
+            int x1 = itox(v);
+            int y1 = itoy(v);
+            if (x1 == EMPTY) return false;
+            int x2 = itox(w);
+            int y2 = itoy(w);
+            if (x2 == EMPTY) return false;
+            x1 -= x2;
+            y1 -= x2;
+            return -1 <= x1 && x1 <= 1 &&
+                -1 <= y1 && y1 <= 1;
         }
-        public Graph(MazePercolationSystem maze) {
-            this(maze.n());
-            for (int v = 0; v < maze.n(); ++v) {
-                int x = maze.itox(v);
-                int y = maze.itoy(v);
-                tryLinkNeighbour(v, x+1, y, maze);
-                tryLinkNeighbour(v, x, y+1, maze);
-                tryLinkNeighbour(v, x-1, y, maze);
-                tryLinkNeighbour(v, x, y-1, maze);
-            }
-        }
-        public Boolean adj(int i, int j) {
-            for (int k = 0; k < MAX_DEG; ++k)
-                if (adj.get(i, k) == j) return true;
-            return false;
-        }
-        public void link(int i, int j) {
-            /* prerequisite: i and j have degree smaller than 4 */
-            int k = 0;
-            while (adj.get(i,k) != EMPTY) {
-                if (k >= 3)
-                    throw new IndexOutOfBoundsException("out of bounds");
-                if (adj.get(i, k) == j) return;
-                ++k;
-            }
-            adj.set(i, k, j);
 
-            k = 0;
-            while(adj.get(j,k) != EMPTY) {
-                if (k >= 3)
-                    throw new IndexOutOfBoundsException("out of bounds");
-                /* unnecessary: if (adj[j][k] == i) return; */
-                ++k;
-            }
-            adj.set(j, k, i);
+        public Iterable<Integer> adj(int v) {
+            return new Iterable<Integer>() {
+                public Iterator<Integer> iterator() {
+                    return new MazeAdjacentVerticesIterator(Maze.this, v);
+                }
+            };
         }
-        private void tryLinkNeighbour(int i0, int x1, int y1, MazePercolationSystem maze) {
-            int i1 = maze.xytoi(x1, y1);
-            if (i1 == EMPTY) return;
-            link(i0, i1);
+
+        private static class MazeAdjacentVerticesIterator
+                implements Iterator<Integer> {
+                Maze maze;
+                int k, x0, y0;
+                private static final int[] dx = {
+                    -1, 1, 0, 0
+                };
+                private static final int[] dy = {
+                    0, 0, -1, 1
+                };
+                public MazeAdjacentVerticesIterator(Maze maze, int v) {
+                    this.maze = maze;
+                    this.k = 0;
+                    this.x0 = maze.itox(v);
+                    this.y0 = maze.itoy(v);
+                }
+                public boolean hasNext() {
+                    int k0 = this.k;
+                    if (next() == null)
+                        return false;
+                    this.k = k0;
+                    return true;
+                }
+                public Integer next() {
+                    int x, y, w;
+                    while (k < 4) {
+                        x = x0 + dx[k];
+                        y = y0 + dy[k];
+                        w = maze.xytoi(x, y);
+                        k += 1;
+                        if (w != EMPTY)
+                            return w;
+                    }
+                    return null;
+                }
         }
     }
 
     public static class Paths
     {
-        Graph g;
         int[] height;
         int[] prev;
-        public Paths(Graph g, int orig) {
-            this.g = g;
-            height = new int[g.V];
-            prev = new int[g.V];
-            for (int i = 0; i < g.V; ++i) {
+        public Paths(Maze g, int orig) {
+            height = new int[g.n()];
+            prev = new int[g.n()];
+            for (int i = 0; i < g.n(); ++i) {
                 height[i] = INFTY;
                 prev[i] = EMPTY;
             }
             height[orig] = 0;
 
             Queue<Integer> q = new LinkedList<Integer>();
+            q.add(orig);
             while(q.size() != 0)
             {
                 int v = q.poll();
                 int newh = 1 + height[v];
-                for (int k = 0; k < MAX_DEG; ++k) {
-                    int w = g.adj.get(v, k);
-                    if (w != EMPTY && height[w] > newh) {
-                        if (prev[w] == EMPTY)
+                for (int w: g.adj(v)) {
+                    if (height[w] > newh) {
+                        if (height[w] == INFTY)
                             q.add(w);
                         height[w] = newh;
                         prev[w] = v;
@@ -292,31 +274,33 @@ public class MazeWalker {
         /* original path --- a line comprised of characters 'L','R','U','D' */
         String iniPat = args[0]; /*  r.readLine(); */
         /* visible (out of fog-of-war) part of the maze */
-        /* represented as a percolation system */
         /* with vertices enumerated and mapped to a plane */
-        MazePercolationSystem maze = new MazePercolationSystem(iniPat);
-
-        /* the graph representing our out-of-fog-of-war part of maze */
-        Graph g = new Graph(maze);
+        Maze maze = new Maze(iniPat);
 
         int io = 0;
-        int id = maze.xytoi(maze.destinationX(), maze.destinationY());;
-        Paths p = new Paths(g, io);
-        int optLen = p .distTo(id);
+        int x = maze.destinationX();
+        int y = maze.destinationY();
+        int id = maze.xytoi(x, y);
+        Paths p = new Paths(maze, io);
+        int optLen = p.distTo(id);
         char[] optPat = new char[optLen];
         char[][] dtomov = {
             { '0', 'U', '0' },
             { 'L', '0', 'R' },
             { '0', 'D', '0' }
         };
-        int x = maze.originX();
-        int y = maze.originY();
-        for (int i = id; i > 0; ++i) {
-            int pre = p.prev(i);
+        int v = id;
+        for (int i = optLen - 1; i >= 0; --i) {
+            int pre = p.prev(v);
             int xpre = maze.itox(pre);
             int ypre = maze.itoy(pre);
             char mov = dtomov[1-(y-ypre)][1+x-xpre];
-            optPat[optLen - i] = mov;
+            optPat[i] = mov;
+            v = pre;
+            x = xpre;
+            y = ypre;
+
         }
+        System.out.println(new String(optPat));
     }
 }
