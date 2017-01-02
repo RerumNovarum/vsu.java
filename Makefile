@@ -4,8 +4,12 @@ JAVA = java
 
 JAVACP = .
 
-JAVACFLAGS = -cp $(JAVACP)
+JAVACFLAGS = -cp $(JAVACP) -g
 JAVAFLAGS = -cp $(JAVACP)
+
+.PHONY: all
+
+all: Quine.out.java MazeWalker.class
 
 %.jar:
 	$(JAVAC) $(JAVACFLAGS) $(cdr $^)
