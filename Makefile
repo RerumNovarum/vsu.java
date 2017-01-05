@@ -9,7 +9,10 @@ JAVAFLAGS = -cp $(JAVACP)
 
 .PHONY: all
 
-all: Quine.out.java MazeWalker.class
+TASKS_SRC = Quine.java MazeWalker.java KnightsTour.java Combinations.java
+TASKS_CLASSES = $(TASKS_SRC:.java=.class)
+
+all: Quine.out.java $(TASKS_CLASSES)
 
 %.jar:
 	$(JAVAC) $(JAVACFLAGS) $(cdr $^)
